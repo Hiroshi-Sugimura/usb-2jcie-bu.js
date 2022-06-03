@@ -1,0 +1,26 @@
+{
+  "name": "usb-2jcie-bu",
+  "version": "0.0.2",
+  "description": "This module provides OMRON USB device (2JCIE-BU).",
+  "main": "index.js",
+  "scripts": {
+    "test": "cd ..&& cd .. && npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hiroshi-Sugimura/usb-2jcie-bu.js"
+  },
+  "author": {
+    "name": "Hiroshi SUGIMURA"
+  },
+  "license": "MIT",
+  "Keywords": [
+    "Environment sensor",
+    "Smart house",
+    "IoT",
+    "USB dongle"
+  ],
+  "dependencies": {
+    "serialport": "^10.4.0"
+  }
+}
