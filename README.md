@@ -13,6 +13,7 @@ OMRON 公式ページより、USB ドライバーをダウンロードして PC 
 
 NPMを見ると他にも開発されていますが、本モジュールの特徴は node-gyp に依存しないことです．
 Windows以外では利点にならないかもしれません．
+USBドングルは1つだけ対応しています。複数接続していても初めに発見した1つを利用します。
 
 
 
@@ -31,7 +32,7 @@ npm i usb-2jcie-bu
 
 # Demos
 
-## Controller demo
+## demo
 
 
 Here is a demonstration script.
@@ -44,16 +45,24 @@ const cron = require('node-cron');
 require('date-utils');
 
 
-omron.start(  (sensorData) => {
-	console.log( '----------------------------' );
-	let dt = new Date();
-	console.log( dt );
-	console.dir( sensorData );
-});
-
 
 // 2秒毎にチェック
 cron.schedule('*/2 * * * * *', () => {
+
+	// 重複起動は内部でチェックしているので、定期的にstartしておくとUSB抜き差しにも対応できる
+	omron.start(  (sensorData, error) => {
+		if( error ) {
+			console.error( error );
+			return;
+		}
+
+		console.log( '----------------------------' );
+		let dt = new Date();
+		console.log( dt );
+		console.dir( sensorData );
+	});
+
+
 	omron.requestData();
 });
 ```
@@ -87,7 +96,7 @@ sensorData: {
 callback関数は下記の形式です。
 
 ```
-callback( sensorData )
+callback( sensorData, error )
 ```
 
 
@@ -143,5 +152,7 @@ x Warranty
 
 ## Log
 
+- 0.1.0 割と安定して動く版
+- 0.0.3 異常系対応（dongle無い、初期化2重呼び出し、エラー用callback）
 - 0.0.2 ちょっとできたので公開
 - 0.0.1 開発開始

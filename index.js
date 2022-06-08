@@ -18,6 +18,7 @@ let omron = {
 	},
 	port: null,
 
+
 	//////////////////////////////////////////////////////////////////////
 	// リクエストデータ生成 (Uint8Array)
 	createRequestData: function () {
@@ -81,8 +82,16 @@ let omron = {
 		}
 
 		// 本当は recvData.buffer で行けると思うけど、過去データが呼び出されるという謎のバグに悩まされ、変換を2回をする中でバイト数調整をして何とかした
+		// let data_view = new DataView( recvData.buffer );
 		let data_view = new DataView( Uint8Array.from(recvData).subarray(0,30).buffer );
-		let len = data_view.getUint16(2, true);
+
+		let len = 0;
+		try{
+			len = data_view.getUint16(2, true);  // ここでOffset is outside the bounds of the DataViewが出るので調査中。とりあえず止まらないようにtry-catch
+		}catch(e){
+			console.error(e);
+			console.dir( JSON.stringify(data_view) );
+		}
 		if (len !== recvData.byteLength - 4) {
 			console.log('レスポンスのバイト長異常を検知したため受信データを破棄しました: ' + len + ',' + recvData.byteLength);
 			return;
@@ -107,10 +116,10 @@ let omron = {
 		let heat_stroke      = data_view.getInt16(26, true) / 100; // degC
 
 
-		// 出力
-		omron.callback( { 'sequence_number': sequence_number,
+		// 出力をオブジェクトに
+		return { 'sequence_number': sequence_number,
 			'temperature': temperature, 'humidity': humidity, 'anbient_light': anbient_light, 'pressure': pressure, 'noise': noise,
-			'etvoc': etvoc, 'eco2': eco2, 'discomfort_index': discomfort_index, 'heat_stroke': heat_stroke});
+			'etvoc': etvoc, 'eco2': eco2, 'discomfort_index': discomfort_index, 'heat_stroke': heat_stroke};
 	},
 
 
@@ -136,7 +145,13 @@ let omron = {
 
 	//////////////////////////////////////////////////////////////////////
 	// entry point
-	start: async function ( callback ) {
+	start: async function ( callback, options = {} ) {
+
+		if( omron.port ) {  // すでに通信している
+			omron.callback( null, 'Error: usb-2jcie-bu.start(): port is used alerady.' );
+			return;
+		}
+
 		omron.portConfig = {  // default config set
 			path: 'COM3',
 			baudRate: 115200,
@@ -149,8 +164,8 @@ let omron = {
 		if( callback ) {
 			omron.callback = callback;
 		}else{
-			console.error( 'usb-2jcie-bu.start(): callback is null' );
-			throw new Error('usb-2jcie-bu.start(): callback is null');
+			console.log( 'Error: usb-2jcie-bu.start(): responceFunc is null.' );
+			return;
 		}
 
 		// 環境センサーに接続
@@ -162,16 +177,31 @@ let omron = {
 			}
 		});
 
-		omron.portConfig.path = com[0].path;
+		if( com.length == 0 ) {  // センサー見つからない
+			omron.callback( null, 'Error: usb-2jcie-bu.start(): Sensor (2JCE-BU) is not found.' );
+			return;
+		}
+
+		omron.portConfig.path = com[0].path;  // センサー見つかった
 
 		omron.port = new SerialPort( omron.portConfig, function (err) {
 			if (err) {
-				return console.log('Error: ', err.message)
+				omron.callback( null, err );
+				return;
 			}
 		});
 
+
 		omron.port.on('data', function (recvData) {
-			omron.parseResponse( recvData );
+			omron.callback( omron.parseResponse( recvData ), null );
+		});
+
+
+		// USB外したりしたとき
+		omron.port.on('close', function () {
+			omron.callback( null, 'INF: port is closed.' );
+			omron.port = null;
+			omron.callback = null;
 		});
 	}
 };
