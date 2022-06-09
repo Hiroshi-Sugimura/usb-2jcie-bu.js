@@ -89,18 +89,18 @@ let omron = {
 		try{
 			len = data_view.getUint16(2, true);  // ここでOffset is outside the bounds of the DataViewが出るので調査中。とりあえず止まらないようにtry-catch
 		}catch(e){
-			console.error(e);
-			console.dir( JSON.stringify(data_view) );
+			// console.error(e);
+			// console.dir( JSON.stringify(data_view) );
 		}
 		if (len !== recvData.byteLength - 4) {
-			console.log('レスポンスのバイト長異常を検知したため受信データを破棄しました: ' + len + ',' + recvData.byteLength);
+			// console.log('レスポンスのバイト長異常を検知したため受信データを破棄しました: ' + len + ',' + recvData.byteLength);
 			return;
 		}
 
 		let command = data_view.getUint8(4);
 		let address = data_view.getUint16(5, true);
 		if (address !== 0x5022) {
-			console.log('レスポンスのアドレスが未知のため受信データを破棄しました: address=' + address);
+			// console.log('レスポンスのアドレスが未知のため受信データを破棄しました: address=' + address);
 			return;
 		}
 
@@ -139,6 +139,10 @@ let omron = {
 	},
 
 	requestData: function () {
+		if( !omron.port ) {  // まだポートがない
+			omron.callback( null, 'Error: usb-2jcie-bu.requestData(): port is not found.' );
+			return;
+		}
 		omron.port.write( omron.createRequestData() );
 	},
 
@@ -193,7 +197,12 @@ let omron = {
 
 
 		omron.port.on('data', function (recvData) {
-			omron.callback( omron.parseResponse( recvData ), null );
+			let r = omron.parseResponse( recvData );
+			if( r ) {
+				omron.callback( r, null);
+			}else{
+				omron.callback( null, 'Error: recvData is nothing.' );
+			}
 		});
 
 
