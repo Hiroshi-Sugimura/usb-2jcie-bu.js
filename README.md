@@ -100,6 +100,10 @@ callback( sensorData, error )
 ```
 
 
+- stop()
+終了してportを開放します。
+
+
 ## データのリクエスト
 
 - requestData()
@@ -152,6 +156,7 @@ x Warranty
 
 ## Log
 
+- 1.0.0 closeを作って一旦完成
 - 0.1.2 受信データ失敗の時のcallback無視
 - 0.1.1 ポート無いときのrequestData無視
 - 0.1.0 割と安定して動く版

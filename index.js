@@ -152,7 +152,7 @@ let omron = {
 	start: async function ( callback, options = {} ) {
 
 		if( omron.port ) {  // すでに通信している
-			omron.callback( null, 'Error: usb-2jcie-bu.start(): port is used alerady.' );
+			omron.callback( null, 'Error: usb-2jcie-bu.start(): port is used already.' );
 			return;
 		}
 
@@ -208,10 +208,28 @@ let omron = {
 
 		// USB外したりしたとき
 		omron.port.on('close', function () {
-			omron.callback( null, 'INF: port is closed.' );
-			omron.port = null;
-			omron.callback = null;
+			if( omron.port ) {
+				omron.port.close();
+				omron.port = null;
+			}
+
+			if( omron.callback ) {
+				omron.callback( null, 'INF: port is closed.' );
+				omron.callback = null;
+			}
 		});
+	},
+
+	stop: function () {
+		if( omron.port ) {
+			omron.port.close();
+			omron.port = null;
+		}
+
+		if( omron.callback ) {
+			omron.callback( null, 'INF: port is closed.' );
+			omron.callback = null;
+		}
 	}
 };
 
