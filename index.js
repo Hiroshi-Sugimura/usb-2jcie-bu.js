@@ -140,7 +140,11 @@ let omron = {
 
 	requestData: function () {
 		if( !omron.port ) {  // まだポートがない
-			omron.callback( null, 'Error: usb-2jcie-bu.requestData(): port is not found.' );
+			if( omron.callback ) {
+				omron.callback( null, 'Error: usb-2jcie-bu.requestData(): port is not found.' );
+			}else{
+				console.error( '@usb-2jcie-bu Error: usb-2jcie-bu.requestData(): port is not found.' );
+			}
 			return;
 		}
 		omron.port.write( omron.createRequestData() );
@@ -152,7 +156,11 @@ let omron = {
 	start: async function ( callback, options = {} ) {
 
 		if( omron.port ) {  // すでに通信している
-			omron.callback( null, 'Error: usb-2jcie-bu.start(): port is used already.' );
+			if( omron.callback ) {
+				omron.callback( null, 'Error: usb-2jcie-bu.start(): port is used already.' );
+			}else{
+				console.error( '@usb-2jcie-bu Error: usb-2jcie-bu.start(): port is used already.' );
+			}
 			return;
 		}
 
@@ -182,7 +190,11 @@ let omron = {
 		});
 
 		if( com.length == 0 ) {  // センサー見つからない
-			omron.callback( null, 'Error: usb-2jcie-bu.start(): Sensor (2JCE-BU) is not found.' );
+			if( omron.callback ) {
+				omron.callback( null, 'Error: usb-2jcie-bu.start(): Sensor (2JCE-BU) is not found.' );
+			}else{
+				console.error( '@usb-2jcie-bu Error: usb-2jcie-bu.start(): Sensor (2JCE-BU) is not found.' );
+			}
 			return;
 		}
 
@@ -190,7 +202,11 @@ let omron = {
 
 		omron.port = new SerialPort( omron.portConfig, function (err) {
 			if (err) {
-				omron.callback( null, err );
+				if( omron.callback ) {
+					omron.callback( null, err );
+				}else{
+					console.error( '@usb-2jcie-bu ' + err );
+				}
 				return;
 			}
 		});
@@ -199,7 +215,11 @@ let omron = {
 		omron.port.on('data', function (recvData) {
 			let r = omron.parseResponse( recvData );
 			if( r ) {
-				omron.callback( r, null);
+				if( omron.callback ) {
+					omron.callback( r, null);
+				}else{
+					console.dir( r );
+				}
 			}else{
 				omron.callback( null, 'Error: recvData is nothing.' );
 			}
