@@ -156,6 +156,8 @@ x Warranty
 
 ## Log
 
+- 1.2.0 LED settingを追加
+- 1.1.1 callbackないときのエラー処理
 - 1.1.0 callbackないときのエラー処理
 - 1.0.0 closeを作って一旦完成
 - 0.1.2 受信データ失敗の時のcallback無視

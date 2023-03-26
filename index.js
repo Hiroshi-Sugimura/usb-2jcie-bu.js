@@ -23,10 +23,10 @@ let omron = {
 	// リクエストデータ生成 (Uint8Array)
 	createRequestData: function () {
 		// Header
-		const header_view = new Uint8Array([0x52, 0x42]);
+		const header_view = new Uint8Array([0x52, 0x42]); // fix
 		// Length (Payload ～ CRC-16)
-		const length_view = new Uint16Array([5]);
-		// Payload frame
+		const length_view = new Uint16Array([5]);  // length = payload + CRC
+		// Payload frame; command[1], address[2], data[n]
 		const command_view = new Uint8Array([0x01]); // 0x01: Read, 0x02: Write
 		const address_view = new Uint16Array([0x5022]); // 0x5022: Latest data short
 		// CRC-16 (Header ～ Payload)
@@ -37,6 +37,52 @@ let omron = {
 
 		return req_data;
 	},
+
+	//////////////////////////////////////////////////////////////////////
+	// リクエストデータ生成 (Uint8Array)
+	createSettingLED: function ( option ) {
+		// Header
+		const header_view = new Uint8Array([0x52, 0x42]); // fix
+		// Length (Payload ～ CRC-16)
+		const length_view = new Uint16Array([10]); // length = payload + CRC
+		// Payload frame; command[1], address[2], data[n]
+		const command_view = new Uint8Array([0x02]); // 0x01: Read, 0x02: Write
+		const address_view = new Uint16Array([0x5111]); // 0x5111: LED
+
+		// setting
+		const display_rule = new Uint16Array([0x0001]);
+		const led_red = new Uint8Array([option.red]);
+		const led_blue = new Uint8Array([option.blue]);
+		const led_green = new Uint8Array([option.green]);
+
+		// CRC-16 (Header ～ Payload)
+		const crc = omron.calcCrc16([header_view, length_view, command_view, address_view, display_rule, led_red, led_green, led_blue ]);
+		const crc_view = new Uint16Array([crc]);
+		// 各 Typed Array を結合して 1 つの Uint8 Typed Array にする
+		const req_data = omron.concatTypedArrays([header_view, length_view, command_view, address_view, display_rule, led_red, led_green, led_blue, crc_view]);
+
+		return req_data;
+	},
+
+	// Flash memory status
+	requestFlashMemoryStatus: function () {
+		// Header
+		const header_view = new Uint8Array([0x52, 0x42]);  // fix
+		// Length (Payload ～ CRC-16)
+		const length_view = new Uint16Array([5]); // length = payload + CRC
+		// Payload frame; command[1], address[2], data[n]
+		const command_view = new Uint8Array([0x01]); // 0x01: Read, 0x02: Write
+		const address_view = new Uint16Array([0x5403]); // 0x5403: flash memory status
+
+		// CRC-16 (Header ～ Payload)
+		const crc = omron.calcCrc16([header_view, length_view, command_view, address_view]);
+		const crc_view = new Uint16Array([crc]);
+		// 各 Typed Array を結合して 1 つの Uint8 Typed Array にする
+		const req_data = omron.concatTypedArrays([header_view, length_view, command_view, address_view, crc_view]);
+
+		return req_data;
+	},
+
 
 	//////////////////////////////////////////////////////////////////////
 	// Typed Array オブジェクトのリストを 1 つの Uint8Array に連結
@@ -77,7 +123,7 @@ let omron = {
 	//////////////////////////////////////////////////////////////////////
 	// レスポンスをパース
 	parseResponse: function( recvData ) {
-		if (recvData[0] !== 0x52 || recvData[1] !== 0x42) {
+		if (recvData[0] !== 0x52 || recvData[1] !== 0x42) {  // 受信ヘッダ [0x42, 0x52] で固定 = [0x5242]
 			return;
 		}
 
@@ -89,37 +135,48 @@ let omron = {
 		try{
 			len = data_view.getUint16(2, true);  // ここでOffset is outside the bounds of the DataViewが出るので調査中。とりあえず止まらないようにtry-catch
 		}catch(e){
-			// console.error(e);
+			console.error(e);
 			// console.dir( JSON.stringify(data_view) );
 		}
 		if (len !== recvData.byteLength - 4) {
-			// console.log('レスポンスのバイト長異常を検知したため受信データを破棄しました: ' + len + ',' + recvData.byteLength);
+			console.log('レスポンスのバイト長異常を検知したため受信データを破棄しました: ' + len + ',' + recvData.byteLength);
+			console.log('recvData: ', recvData);
 			return;
 		}
 
 		let command = data_view.getUint8(4);
 		let address = data_view.getUint16(5, true);
-		if (address !== 0x5022) {
+		if (address == 0x5022) {
 			// console.log('レスポンスのアドレスが未知のため受信データを破棄しました: address=' + address);
-			return;
+			let sequence_number  = data_view.getUint8(7);
+			let temperature      = data_view.getInt16(8, true) / 100; // degC
+			let humidity         = data_view.getInt16(10, true) / 100; // %RH
+			let anbient_light    = data_view.getInt16(12, true); // lx
+			let pressure         = data_view.getInt32(14, true) / 1000; // hPa
+			let noise            = data_view.getInt16(18, true) / 100; // dB
+			let etvoc            = data_view.getInt16(20, true); // ppb
+			let eco2             = data_view.getInt16(22, true); // ppm
+			let discomfort_index = data_view.getInt16(24, true) / 100;
+			let heat_stroke      = data_view.getInt16(26, true) / 100; // degC
+
+
+			// 出力をオブジェクトに
+			return { 'sequence_number': sequence_number,
+				'temperature': temperature, 'humidity': humidity, 'anbient_light': anbient_light, 'pressure': pressure, 'noise': noise,
+				'etvoc': etvoc, 'eco2': eco2, 'discomfort_index': discomfort_index, 'heat_stroke': heat_stroke};
+
+		}else if (address == 0x5111) {
+			console.log('LED setting [normal state].');
+			let d  = data_view.getUint8(7);
+			return { 'data': d };
+		}else if (address == 0x5403) {
+			console.log('read Flash memory status.');
+			let d  = data_view.getUint8(7);
+			return { 'data': d };
 		}
 
-		let sequence_number  = data_view.getUint8(7);
-		let temperature      = data_view.getInt16(8, true) / 100; // degC
-		let humidity         = data_view.getInt16(10, true) / 100; // %RH
-		let anbient_light    = data_view.getInt16(12, true); // lx
-		let pressure         = data_view.getInt32(14, true) / 1000; // hPa
-		let noise            = data_view.getInt16(18, true) / 100; // dB
-		let etvoc            = data_view.getInt16(20, true); // ppb
-		let eco2             = data_view.getInt16(22, true); // ppm
-		let discomfort_index = data_view.getInt16(24, true) / 100;
-		let heat_stroke      = data_view.getInt16(26, true) / 100; // degC
-
-
-		// 出力をオブジェクトに
-		return { 'sequence_number': sequence_number,
-			'temperature': temperature, 'humidity': humidity, 'anbient_light': anbient_light, 'pressure': pressure, 'noise': noise,
-			'etvoc': etvoc, 'eco2': eco2, 'discomfort_index': discomfort_index, 'heat_stroke': heat_stroke};
+		console.log('other address:', address);
+		return;
 	},
 
 
@@ -147,9 +204,30 @@ let omron = {
 			}
 			return;
 		}
-		omron.port.write( omron.createRequestData() );
+		const b = omron.createRequestData();
+		// console.log('req:', b);
+		omron.port.write( b );
 	},
 
+	settingLED: async function( option ) {
+		// console.log(option);
+		if( !omron.port ) {  // まだポートがない
+			if( omron.callback ) {
+				omron.callback( null, 'Error: usb-2jcie-bu.settingLED(): port is not found.' );
+			}else{
+				console.error( '@usb-2jcie-bu Error: usb-2jcie-bu.settingLED(): port is not found.' );
+			}
+			return;
+		}
+		const b = omron.createSettingLED(option);
+		// console.log('led:', b);
+		await omron.port.write( b );
+	},
+
+	flashMemoryStatus: async function() {
+		// console.log('flashMemoryStatus');
+		await omron.port.write( omron.requestFlashMemoryStatus() );
+	},
 
 	//////////////////////////////////////////////////////////////////////
 	// entry point
@@ -221,7 +299,9 @@ let omron = {
 					console.dir( r );
 				}
 			}else{
-				omron.callback( null, 'Error: recvData is nothing.' );
+				if( omron.callback ) {
+					omron.callback( null, 'Error: recvData is nothing.' );
+				}
 			}
 		});
 

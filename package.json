@@ -1,6 +1,6 @@
 {
   "name": "usb-2jcie-bu",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "This module provides OMRON USB device (2JCIE-BU).",
   "main": "index.js",
   "scripts": {
