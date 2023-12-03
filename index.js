@@ -17,6 +17,7 @@ let omron = {
 		parity: 'none'
 	},
 	port: null,
+	debug: false,
 
 
 	//////////////////////////////////////////////////////////////////////
@@ -139,8 +140,8 @@ let omron = {
 			// console.dir( JSON.stringify(data_view) );
 		}
 		if (len !== recvData.byteLength - 4) {
-			console.log('レスポンスのバイト長異常を検知したため受信データを破棄しました: ' + len + ',' + recvData.byteLength);
-			console.log('recvData: ', recvData);
+			omron.debug ? console.log('レスポンスのバイト長異常を検知したため受信データを破棄しました: ' + len + ',' + recvData.byteLength) : 0;
+			omron.debug ? console.log('recvData: ', recvData) : 0;
 			return;
 		}
 
@@ -166,16 +167,16 @@ let omron = {
 				'etvoc': etvoc, 'eco2': eco2, 'discomfort_index': discomfort_index, 'heat_stroke': heat_stroke};
 
 		}else if (address == 0x5111) {
-			console.log('LED setting [normal state].');
+			omron.debug ? console.log('LED setting [normal state].') : 0;
 			let d  = data_view.getUint8(7);
 			return { 'data': d };
 		}else if (address == 0x5403) {
-			console.log('read Flash memory status.');
+			omron.debug ? console.log('read Flash memory status.') : 0;
 			let d  = data_view.getUint8(7);
 			return { 'data': d };
 		}
 
-		console.log('other address:', address);
+		omron.debug ? console.log('other address:', address) : 0;
 		return;
 	},
 
@@ -189,7 +190,7 @@ let omron = {
 			.then( (ports) => {
 				portList = ports;
 			}) .catch( (err) => {
-				console.log(err, "e")
+				omron.debug ? console.log(err, "e") : 0;
 			});
 
 		return portList;
@@ -232,6 +233,7 @@ let omron = {
 	//////////////////////////////////////////////////////////////////////
 	// entry point
 	start: async function ( callback, options = {} ) {
+		omron.debug = options.debug == true ? true : false;
 
 		if( omron.port ) {  // すでに通信している
 			if( omron.callback ) {
@@ -254,7 +256,7 @@ let omron = {
 		if( callback ) {
 			omron.callback = callback;
 		}else{
-			console.log( 'Error: usb-2jcie-bu.start(): responceFunc is null.' );
+			omron.debug ? console.log( 'Error: usb-2jcie-bu.start(): responceFunc is null.' ) : 0;
 			return;
 		}
 
@@ -296,7 +298,7 @@ let omron = {
 				if( omron.callback ) {
 					omron.callback( r, null);
 				}else{
-					console.dir( r );
+					omron.debug ? console.dir( r ) : 0;
 				}
 			}else{
 				if( omron.callback ) {

@@ -156,6 +156,7 @@ x Warranty
 
 ## Log
 
+- 1.3.0 Option.debugを追加
 - 1.2.0 LED settingを追加
 - 1.1.1 callbackないときのエラー処理
 - 1.1.0 callbackないときのエラー処理
