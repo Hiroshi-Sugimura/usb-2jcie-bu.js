@@ -19,6 +19,12 @@ let omron = {
 	port: null,
 	debug: false,
 
+	//////////////////////////////////////////////////////////////////////
+	// 空オブジェクト判定
+	isEmpty: function(obj) {
+		return Object.keys(obj).length === 0
+	},
+
 
 	//////////////////////////////////////////////////////////////////////
 	// リクエストデータ生成 (Uint8Array)
@@ -132,12 +138,17 @@ let omron = {
 		// let data_view = new DataView( recvData.buffer );
 		let data_view = new DataView( Uint8Array.from(recvData).subarray(0,30).buffer );
 
+		// DataViewで必要なデータが得られなかった
+		if( data_view.byteLength != 30 ) {
+			omron.debug ? console.log('data_view: ', data_view) : 0;
+			return;
+		}
+
 		let len = 0;
 		try{
 			len = data_view.getUint16(2, true);  // ここでOffset is outside the bounds of the DataViewが出るので調査中。とりあえず止まらないようにtry-catch
 		}catch(e){
 			console.error(e);
-			// console.dir( JSON.stringify(data_view) );
 		}
 		if (len !== recvData.byteLength - 4) {
 			omron.debug ? console.log('レスポンスのバイト長異常を検知したため受信データを破棄しました: ' + len + ',' + recvData.byteLength) : 0;
