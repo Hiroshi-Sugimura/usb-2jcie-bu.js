@@ -180,12 +180,22 @@ let omron = {
 		const command_view = new Uint8Array([CMD_WRITE]); // 0x01: Read, 0x02: Write
 		const address_view = new Uint16Array([ADDR_LED_SETTING]); // 0x5111: LED
 
+		// Helper to clamp values between min and max
+		const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+
 		// setting
-		const ruleVal = (option.rule !== undefined) ? option.rule : 0x0001; // Default to 0x0001 (Normal)
+		let r = (option.rule !== undefined) ? option.rule : 0x0001; // Default to 0x0001
+		r = clamp(r, 0, 0xFFFF); // Rule is 16-bit
+
+		let red = (option.red !== undefined) ? option.red : 0;
+		let green = (option.green !== undefined) ? option.green : 0;
+		let blue = (option.blue !== undefined) ? option.blue : 0;
+
+		const ruleVal = r;
 		const display_rule = new Uint16Array([ruleVal]);
-		const led_red = new Uint8Array([option.red]);
-		const led_green = new Uint8Array([option.green]); // Correct order: R, G, B
-		const led_blue = new Uint8Array([option.blue]);
+		const led_red = new Uint8Array([clamp(red, 0, 255)]);
+		const led_green = new Uint8Array([clamp(green, 0, 255)]); // Correct order: R, G, B
+		const led_blue = new Uint8Array([clamp(blue, 0, 255)]);
 
 		// CRC-16 (Header ～ Payload)
 		const crc = omron.calcCrc16([header_view, length_view, command_view, address_view, display_rule, led_red, led_green, led_blue]);
@@ -196,11 +206,6 @@ let omron = {
 		return req_data;
 	},
 
-	/**
-	 * フラッシュメモリスステータスリクエスト生成
-	 * @returns {Uint8Array} 生成されたリクエストデータ
-	 * @memberof omron
-	 */
 	requestFlashMemoryStatus: function () {
 		// Header
 		const header_view = new Uint8Array([HEADER_HIGH, HEADER_LOW]);  // fix
@@ -293,20 +298,12 @@ let omron = {
 		}
 
 		// CRC Check
-		// Payload starts at offset 4.
-		// CRC is at the end (last 2 bytes).
-		// However, calcCrc16 expects specific chunks.
-		// Let's verify CRC by calculating it over Header(2)+Length(2)+Payload(N).
-		// The last 2 bytes are the CRC to check against.
-		// Data buffer for CRC calc: all bytes except last 2.
 		let dataForCrc = recvData.subarray(0, recvData.length - 2);
 		let expectedCrc = data_view.getUint16(recvData.length - 2, true);
 		let actualCrc = omron.calcCrc16([dataForCrc]);
 
 		if (actualCrc !== expectedCrc) {
 			omron.debug ? console.log('CRC Error: Expected ' + expectedCrc.toString(16) + ', Got ' + actualCrc.toString(16)) : 0;
-			// 厳しい実装ならここで弾くが、安定性向上のためログ出しのみにするか、弾くか。
-			// 誤ったデータを渡すよりは弾いたほうがマシ
 			return;
 		}
 
@@ -482,7 +479,7 @@ let omron = {
 			}
 		});
 
-		// 通信エラーイベントのハンドリング (重要)
+		// 通信エラーイベントのハンドリング
 		omron.port.on('error', function (err) {
 			if (omron.callback) {
 				omron.callback(null, 'Error: ' + err.message);
@@ -496,6 +493,13 @@ let omron = {
 		omron.internalBuffer = new Uint8Array(0);
 
 		omron.port.on('data', function (chunk) {
+			// バッファ肥大化防止 (Defense: Buffer Overflow Protection)
+			const MAX_BUFFER_SIZE = 1024 * 4; // 4KB
+			if (omron.internalBuffer.length + chunk.length > MAX_BUFFER_SIZE) {
+				omron.debug ? console.error('Warning: Buffer overflow protected. Resetting buffer.') : 0;
+				omron.internalBuffer = new Uint8Array(0);
+			}
+
 			// バッファに追加
 			let newBuffer = new Uint8Array(omron.internalBuffer.length + chunk.length);
 			newBuffer.set(omron.internalBuffer);
@@ -503,7 +507,7 @@ let omron = {
 			omron.internalBuffer = newBuffer;
 
 			while (omron.internalBuffer.length >= 4) { // ヘッダ(2) + 長さ(2) の最小4バイトが必要
-				// ヘッダ検索 (0x52, 0x42)
+				// ヘッダ検索
 				let headerIndex = -1;
 				for (let i = 0; i < omron.internalBuffer.length - 1; i++) {
 					if (omron.internalBuffer[i] === HEADER_HIGH && omron.internalBuffer[i + 1] === HEADER_LOW) {
@@ -513,7 +517,7 @@ let omron = {
 				}
 
 				if (headerIndex === -1) {
-					// ヘッダが見つからない場合、バッファをクリア（ただし最後の1バイトが0x52の可能性を考慮）
+					// ヘッダが見つからない場合、バッファをクリア（ただし最後の1バイトの可能性を考慮）
 					if (omron.internalBuffer[omron.internalBuffer.length - 1] === HEADER_HIGH) {
 						omron.internalBuffer = omron.internalBuffer.slice(omron.internalBuffer.length - 1);
 					} else {
@@ -590,8 +594,4 @@ let omron = {
 	}
 };
 
-
 module.exports = omron;
-//////////////////////////////////////////////////////////////////////
-// EOF
-//////////////////////////////////////////////////////////////////////
