@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>Home - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="omron.html">omron</a><ul class='methods'><li data-type='method'><a href="omron.html#.calcCrc16">calcCrc16</a></li><li data-type='method'><a href="omron.html#.concatTypedArrays">concatTypedArrays</a></li><li data-type='method'><a href="omron.html#.createRequestData">createRequestData</a></li><li data-type='method'><a href="omron.html#.createSettingLED">createSettingLED</a></li><li data-type='method'><a href="omron.html#.flashMemoryStatus">flashMemoryStatus</a></li><li data-type='method'><a href="omron.html#.getPortList">getPortList</a></li><li data-type='method'><a href="omron.html#.isEmpty">isEmpty</a></li><li data-type='method'><a href="omron.html#.parseResponse">parseResponse</a></li><li data-type='method'><a href="omron.html#.requestData">requestData</a></li><li data-type='method'><a href="omron.html#.requestFlashMemoryStatus">requestFlashMemoryStatus</a></li><li data-type='method'><a href="omron.html#.settingLED">settingLED</a></li><li data-type='method'><a href="omron.html#.start">start</a></li><li data-type='method'><a href="omron.html#.stop">stop</a></li></ul></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+
+    
+
+
+
+    
+
+
+    <section class="package">
+        <h3> </h3>		
+    </section>
+
+
+
+
+
+
+
+
+
+    
+
+
+
+    <section class="readme usertext">
+        <article><h1>Overview</h1>
+<p>このモジュールは**OMRONのUSB環境センサ(2JCIE-BU)**をサポートします．
+非公式ですので、本モジュールに関してOMRON社様に問い合わせなどは行わないようにお願いします．</p>
+<p>This module provides <strong>USB environment sensor (2JCIE-BU) producted by OMRON</strong>.
+This module is informality.</p>
+<p>動作確認は 2JCIE-BU01 (https://www.fa.omron.co.jp/products/family/3724/lineup.html) で行いました．
+OMRON 公式ページより、USB ドライバーをダウンロードして PC にインストールしてください。</p>
+<p>NPMを見ると他にも開発されていますが、本モジュールの特徴は node-gyp に依存しないことです．
+Windows以外では利点にならないかもしれません．
+USBドングルは1つだけ対応しています。複数接続していても初めに発見した1つを利用します。</p>
+<h1>Install</h1>
+<p>次に下記コマンドでモジュールをインストールできます．</p>
+<p>You can install the module as following command.</p>
+<pre class="prettyprint source lang-bash"><code>npm i usb-2jcie-bu
+</code></pre>
+<h1>Demos</h1>
+<h2>demo</h2>
+<p>Here is a demonstration script.</p>
+<pre class="prettyprint source lang-JavaScript:Demo"><code>'use strict';
+
+const omron = require('usb-2jcie-bu');
+const cron = require('node-cron');
+require('date-utils');
+
+
+
+// 2秒毎にチェック
+cron.schedule('*/2 * * * * *', () => {
+
+	// 重複起動は内部でチェックしているので、定期的にstartしておくとUSB抜き差しにも対応できる
+	omron.start(  (sensorData, error) => {
+		if( error ) {
+			console.error( error );
+			return;
+		}
+
+		console.log( '----------------------------' );
+		let dt = new Date();
+		console.log( dt );
+		console.dir( sensorData );
+	});
+
+
+	omron.requestData();
+});
+</code></pre>
+<h1>Data stracture</h1>
+<pre class="prettyprint source lang-JavaScript:stracture"><code>sensorData: {
+	'sequence_number': sequence_number,
+	'temperature': temperature,
+	'humidity': humidity,
+	'anbient_light': anbient_light,
+	'pressure': pressure,
+	'noise': noise,
+	'etvoc': etvoc,
+	'eco2': eco2,
+	'discomfort_index': discomfort_index,
+	'heat_stroke': heat_stroke
+}
+</code></pre>
+<h1>APIs</h1>
+<h2>初期化と実行</h2>
+<ul>
+<li>start(callback)
+受信したらcallback関数を呼び出します。
+callback関数は下記の形式です。</li>
+</ul>
+<pre class="prettyprint source"><code>callback( sensorData, error )
+</code></pre>
+<ul>
+<li>stop()
+終了してportを開放します。</li>
+</ul>
+<h2>データのリクエスト</h2>
+<ul>
+<li>requestData()</li>
+</ul>
+<h1>攻略情報</h1>
+<p>定期的にデータを取得するにはcronモジュールを活用するとよいです。</p>
+<pre class="prettyprint source"><code>const omron = require('usb-2jcie-bu');
+const cron = require('node-cron');
+
+// 2秒毎にチェック
+cron.schedule('*/2 * * * * *', () => {
+	omron.requestData();
+});
+</code></pre>
+<h1>meta data</h1>
+<h2>Authors</h2>
+<p>神奈川工科大学  創造工学部  ホームエレクトロニクス開発学科; Dept. of Home Electronics, Faculty of Creative Engineering, Kanagawa Institute of Technology</p>
+<p>杉村　博; SUGIMURA, Hiroshi</p>
+<h2>thanks</h2>
+<p>Thanks to Github users!</p>
+<ul>
+<li>参考にしたソース、Reference
+https://github.com/futomi/html5-omron-2jcie-bu</li>
+</ul>
+<h2>License</h2>
+<p>MIT License</p>
+<pre class="prettyprint source"><code>-- License summary --
+o Commercial use
+o Modification
+o Distribution
+o Private use
+x Liability
+x Warranty
+</code></pre>
+<h2>Log</h2>
+<ul>
+<li>1.3.1 無用なLogを抑制</li>
+<li>1.3.0 Option.debugを追加</li>
+<li>1.2.0 LED settingを追加</li>
+<li>1.1.1 callbackないときのエラー処理</li>
+<li>1.1.0 callbackないときのエラー処理</li>
+<li>1.0.0 closeを作って一旦完成</li>
+<li>0.1.2 受信データ失敗の時のcallback無視</li>
+<li>0.1.1 ポート無いときのrequestData無視</li>
+<li>0.1.0 割と安定して動く版</li>
+<li>0.0.3 異常系対応（dongle無い、初期化2重呼び出し、エラー用callback）</li>
+<li>0.0.2 ちょっとできたので公開</li>
+<li>0.0.1 開発開始</li>
+</ul></article>
+    </section>
+
+
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Fri Dec 26 2025 03:33:50 GMT+0000 (Coordinated Universal Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>
