@@ -5,6 +5,77 @@
 
 const { SerialPort } = require('serialport');
 
+// 定数定義
+
+/**
+ * USB ベンダーID (OMRON)
+ * @type {string}
+ */
+const USB_VENDOR_ID = '0590';
+
+/**
+ * USB プロダクトID (2JCIE-BU)
+ * @type {string}
+ */
+const USB_PRODUCT_ID = '00D4';
+
+/**
+ * パケットヘッダ (High Byte)
+ * @type {number}
+ */
+const HEADER_HIGH = 0x52;
+
+/**
+ * パケットヘッダ (Low Byte)
+ * @type {number}
+ */
+const HEADER_LOW = 0x42;
+
+/**
+ * 読み込みコマンド
+ * @type {number}
+ */
+const CMD_READ = 0x01;
+
+/**
+ * 書き込みコマンド
+ * @type {number}
+ */
+const CMD_WRITE = 0x02;
+
+/**
+ * アドレス: 最新データ (ショート)
+ * @type {number}
+ */
+const ADDR_LATEST_DATA_SHORT = 0x5022;
+
+/**
+ * アドレス: LED設定
+ * @type {number}
+ */
+const ADDR_LED_SETTING = 0x5111;
+
+/**
+ * アドレス: フラッシュメモリスステータス
+ * @type {number}
+ */
+const ADDR_FLASH_MEMORY = 0x5403; // flash memory status
+
+
+/**
+ * センサーデータオブジェクトの型定義
+ * @typedef {object} SensorData
+ * @property {number} sequence_number - シーケンス番号 (0-255)
+ * @property {number} temperature - 温度 (degC)
+ * @property {number} humidity - 湿度 (%RH)
+ * @property {number} anbient_light - 照度 (lx)
+ * @property {number} pressure - 気圧 (hPa)
+ * @property {number} noise - 騒音 (dB)
+ * @property {number} etvoc - eTVOC (ppb)
+ * @property {number} eco2 - eCO2 (ppm)
+ * @property {number} discomfort_index - 不快指数
+ * @property {number} heat_stroke - 熱中症警戒度 (degC)
+ */
 
 /**
  * OMRON USB環境センサ (2JCIE-BU) を制御するモジュール
@@ -76,12 +147,12 @@ let omron = {
 	 */
 	createRequestData: function () {
 		// Header
-		const header_view = new Uint8Array([0x52, 0x42]); // fix
+		const header_view = new Uint8Array([HEADER_HIGH, HEADER_LOW]); // fix
 		// Length (Payload ～ CRC-16)
 		const length_view = new Uint16Array([5]);  // length = payload + CRC
 		// Payload frame; command[1], address[2], data[n]
-		const command_view = new Uint8Array([0x01]); // 0x01: Read, 0x02: Write
-		const address_view = new Uint16Array([0x5022]); // 0x5022: Latest data short
+		const command_view = new Uint8Array([CMD_READ]); // 0x01: Read, 0x02: Write
+		const address_view = new Uint16Array([ADDR_LATEST_DATA_SHORT]); // 0x5022: Latest data short
 		// CRC-16 (Header ～ Payload)
 		const crc = omron.calcCrc16([header_view, length_view, command_view, address_view]);
 		const crc_view = new Uint16Array([crc]);
@@ -102,12 +173,12 @@ let omron = {
 	 */
 	createSettingLED: function (option) {
 		// Header
-		const header_view = new Uint8Array([0x52, 0x42]); // fix
+		const header_view = new Uint8Array([HEADER_HIGH, HEADER_LOW]); // fix
 		// Length (Payload ～ CRC-16)
 		const length_view = new Uint16Array([10]); // length = payload + CRC
 		// Payload frame; command[1], address[2], data[n]
-		const command_view = new Uint8Array([0x02]); // 0x01: Read, 0x02: Write
-		const address_view = new Uint16Array([0x5111]); // 0x5111: LED
+		const command_view = new Uint8Array([CMD_WRITE]); // 0x01: Read, 0x02: Write
+		const address_view = new Uint16Array([ADDR_LED_SETTING]); // 0x5111: LED
 
 		// setting
 		const display_rule = new Uint16Array([0x0001]);
@@ -131,12 +202,12 @@ let omron = {
 	 */
 	requestFlashMemoryStatus: function () {
 		// Header
-		const header_view = new Uint8Array([0x52, 0x42]);  // fix
+		const header_view = new Uint8Array([HEADER_HIGH, HEADER_LOW]);  // fix
 		// Length (Payload ～ CRC-16)
 		const length_view = new Uint16Array([5]); // length = payload + CRC
 		// Payload frame; command[1], address[2], data[n]
-		const command_view = new Uint8Array([0x01]); // 0x01: Read, 0x02: Write
-		const address_view = new Uint16Array([0x5403]); // 0x5403: flash memory status
+		const command_view = new Uint8Array([CMD_READ]); // 0x01: Read, 0x02: Write
+		const address_view = new Uint16Array([ADDR_FLASH_MEMORY]); // 0x5403: flash memory status
 
 		// CRC-16 (Header ～ Payload)
 		const crc = omron.calcCrc16([header_view, length_view, command_view, address_view]);
@@ -196,7 +267,7 @@ let omron = {
 	 * レスポンスデータをパースしてオブジェクトに変換
 	 * (呼び出し元で完全なパケットフレームであることを保証すること)
 	 * @param {Uint8Array} recvData - 受信データ (1パケット分)
-	 * @returns {object|undefined} パースされたセンサーデータオブジェクト、またはundefined
+	 * @returns {SensorData|object|undefined} パースされたセンサーデータオブジェクト、またはundefined
 	 * @memberof omron
 	 */
 	parseResponse: function (recvData) {
@@ -205,7 +276,7 @@ let omron = {
 		let data_view = new DataView(recvData.buffer, recvData.byteOffset, recvData.length);
 
 		// Header check
-		if (data_view.getUint8(0) != 0x52 || data_view.getUint8(1) != 0x42) {
+		if (data_view.getUint8(0) != HEADER_HIGH || data_view.getUint8(1) != HEADER_LOW) {
 			return;
 		}
 
@@ -241,7 +312,7 @@ let omron = {
 		let command = data_view.getUint8(4);
 		let address = data_view.getUint16(5, true);
 
-		if (address == 0x5022) {
+		if (address == ADDR_LATEST_DATA_SHORT) {
 			let sequence_number = data_view.getUint8(7);
 			let temperature = data_view.getInt16(8, true) / 100; // degC
 			let humidity = data_view.getInt16(10, true) / 100; // %RH
@@ -259,11 +330,11 @@ let omron = {
 				'etvoc': etvoc, 'eco2': eco2, 'discomfort_index': discomfort_index, 'heat_stroke': heat_stroke
 			};
 
-		} else if (address == 0x5111) {
+		} else if (address == ADDR_LED_SETTING) {
 			omron.debug ? console.log('LED setting [normal state].') : 0;
 			let d = data_view.getUint8(7);
 			return { 'data': d };
-		} else if (address == 0x5403) {
+		} else if (address == ADDR_FLASH_MEMORY) {
 			omron.debug ? console.log('read Flash memory status.') : 0;
 			let d = data_view.getUint8(7);
 			return { 'data': d };
@@ -282,14 +353,11 @@ let omron = {
 	 */
 	getPortList: async function () {
 		let portList = [];
-
-		await SerialPort.list()
-			.then((ports) => {
-				portList = ports;
-			}).catch((err) => {
-				omron.debug ? console.log(err, "e") : 0;
-			});
-
+		try {
+			portList = await SerialPort.list();
+		} catch (err) {
+			omron.debug ? console.log(err, "e") : 0;
+		}
 		return portList;
 	},
 
@@ -384,8 +452,9 @@ let omron = {
 		// 環境センサーに接続
 		// ユーザーにシリアルポート選択画面を表示して選択を待ち受ける
 		let portList = await omron.getPortList();
-		let com = await portList.filter((p) => {
-			if (p.vendorId == '0590' && p.productId == '00D4') {
+		// 同期処理なのでawait不要
+		let com = portList.filter((p) => {
+			if (p.vendorId == USB_VENDOR_ID && p.productId == USB_PRODUCT_ID) {
 				return p;
 			}
 		});
@@ -412,6 +481,14 @@ let omron = {
 			}
 		});
 
+		// 通信エラーイベントのハンドリング (重要)
+		omron.port.on('error', function (err) {
+			if (omron.callback) {
+				omron.callback(null, 'Error: ' + err.message);
+			} else {
+				console.error('@usb-2jcie-bu Error: ' + err.message);
+			}
+		});
 
 		// データ受信イベントのハンドリング強化
 		// バッファリング処理を追加し、パケットの断片化や結合に対応
@@ -428,7 +505,7 @@ let omron = {
 				// ヘッダ検索 (0x52, 0x42)
 				let headerIndex = -1;
 				for (let i = 0; i < omron.internalBuffer.length - 1; i++) {
-					if (omron.internalBuffer[i] === 0x52 && omron.internalBuffer[i + 1] === 0x42) {
+					if (omron.internalBuffer[i] === HEADER_HIGH && omron.internalBuffer[i + 1] === HEADER_LOW) {
 						headerIndex = i;
 						break;
 					}
@@ -436,7 +513,7 @@ let omron = {
 
 				if (headerIndex === -1) {
 					// ヘッダが見つからない場合、バッファをクリア（ただし最後の1バイトが0x52の可能性を考慮）
-					if (omron.internalBuffer[omron.internalBuffer.length - 1] === 0x52) {
+					if (omron.internalBuffer[omron.internalBuffer.length - 1] === HEADER_HIGH) {
 						omron.internalBuffer = omron.internalBuffer.slice(omron.internalBuffer.length - 1);
 					} else {
 						omron.internalBuffer = new Uint8Array(0);
