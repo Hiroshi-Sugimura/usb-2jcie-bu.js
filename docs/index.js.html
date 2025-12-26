@@ -98,6 +98,13 @@ let omron = {
 	debug: false,
 
 	/**
+	 * 受信データバッファ (内部用)
+	 * @type {Uint8Array}
+	 * @memberof omron
+	 */
+	internalBuffer: new Uint8Array(0),
+
+	/**
 	 * 空オブジェクト判定
 	 * @param {object} obj - 判定するオブジェクト
 	 * @returns {boolean} 空の場合はtrue
@@ -197,7 +204,7 @@ let omron = {
 	concatTypedArrays: function (typed_array_list) {
 		let byte_list = [];
 		for (let typed_array of typed_array_list) {
-			let uint8_view = new Uint8Array(typed_array.buffer, 0);
+			let uint8_view = new Uint8Array(typed_array.buffer, typed_array.byteOffset, typed_array.byteLength);
 			for (let byte of uint8_view) {
 				byte_list.push(byte);
 			}
@@ -234,41 +241,54 @@ let omron = {
 
 	/**
 	 * レスポンスデータをパースしてオブジェクトに変換
-	 * @param {Uint8Array} recvData - 受信データ
+	 * (呼び出し元で完全なパケットフレームであることを保証すること)
+	 * @param {Uint8Array} recvData - 受信データ (1パケット分)
 	 * @returns {object|undefined} パースされたセンサーデータオブジェクト、またはundefined
 	 * @memberof omron
 	 */
 	parseResponse: function (recvData) {
-		if (recvData[0] !== 0x52 || recvData[1] !== 0x42) {  // 受信ヘッダ [0x42, 0x52] で固定 = [0x5242]
+		if (recvData.length &lt; 4) return; // 最低限ヘッダと長さフィールドが必要
+
+		let data_view = new DataView(recvData.buffer, recvData.byteOffset, recvData.length);
+
+		// Header check
+		if (data_view.getUint8(0) != 0x52 || data_view.getUint8(1) != 0x42) {
 			return;
 		}
 
-		// 本当は recvData.buffer で行けると思うけど、過去データが呼び出されるという謎のバグに悩まされ、変換を2回をする中でバイト数調整をして何とかした
-		// let data_view = new DataView( recvData.buffer );
-		let data_view = new DataView(Uint8Array.from(recvData).subarray(0, 30).buffer);
-
-		// DataViewで必要なデータが得られなかった
-		if (data_view.byteLength != 30) {
-			omron.debug ? console.log('data_view: ', data_view) : 0;
+		// Length check (Packet Size = Length Value + 4 bytes header)
+		// Note: The 'Length' field in the packet is (Payload + CRC).
+		// Packet = Header(2) + Length(2) + Payload + CRC(2)
+		// Thus, Length Value = Payload + CRC
+		// Total Bytes = 4 + Length Value
+		let len = data_view.getUint16(2, true);
+		if (recvData.length !== len + 4) {
+			omron.debug ? console.log('パケット長不一致: Expected ' + (len + 4) + ', Got ' + recvData.length) : 0;
 			return;
 		}
 
-		let len = 0;
-		try {
-			len = data_view.getUint16(2, true);  // ここでOffset is outside the bounds of the DataViewが出るので調査中。とりあえず止まらないようにtry-catch
-		} catch (e) {
-			console.error(e);
-		}
-		if (len !== recvData.byteLength - 4) {
-			omron.debug ? console.log('レスポンスのバイト長異常を検知したため受信データを破棄しました: ' + len + ',' + recvData.byteLength) : 0;
-			omron.debug ? console.log('recvData: ', recvData) : 0;
+		// CRC Check
+		// Payload starts at offset 4.
+		// CRC is at the end (last 2 bytes).
+		// However, calcCrc16 expects specific chunks.
+		// Let's verify CRC by calculating it over Header(2)+Length(2)+Payload(N).
+		// The last 2 bytes are the CRC to check against.
+		// Data buffer for CRC calc: all bytes except last 2.
+		let dataForCrc = recvData.subarray(0, recvData.length - 2);
+		let expectedCrc = data_view.getUint16(recvData.length - 2, true);
+		let actualCrc = omron.calcCrc16([dataForCrc]);
+
+		if (actualCrc !== expectedCrc) {
+			omron.debug ? console.log('CRC Error: Expected ' + expectedCrc.toString(16) + ', Got ' + actualCrc.toString(16)) : 0;
+			// 厳しい実装ならここで弾くが、安定性向上のためログ出しのみにするか、弾くか。
+			// 誤ったデータを渡すよりは弾いたほうがマシ
 			return;
 		}
 
 		let command = data_view.getUint8(4);
 		let address = data_view.getUint16(5, true);
+
 		if (address == 0x5022) {
-			// console.log('レスポンスのアドレスが未知のため受信データを破棄しました: address=' + address);
 			let sequence_number = data_view.getUint8(7);
 			let temperature = data_view.getInt16(8, true) / 100; // degC
 			let humidity = data_view.getInt16(10, true) / 100; // %RH
@@ -280,8 +300,6 @@ let omron = {
 			let discomfort_index = data_view.getInt16(24, true) / 100;
 			let heat_stroke = data_view.getInt16(26, true) / 100; // degC
 
-
-			// 出力をオブジェクトに
 			return {
 				'sequence_number': sequence_number,
 				'temperature': temperature, 'humidity': humidity, 'anbient_light': anbient_light, 'pressure': pressure, 'noise': noise,
@@ -442,18 +460,69 @@ let omron = {
 		});
 
 
-		omron.port.on('data', function (recvData) {
-			let r = omron.parseResponse(recvData);
-			if (r) {
-				if (omron.callback) {
-					omron.callback(r, null);
-				} else {
-					omron.debug ? console.dir(r) : 0;
+		// データ受信イベントのハンドリング強化
+		// バッファリング処理を追加し、パケットの断片化や結合に対応
+		omron.internalBuffer = new Uint8Array(0);
+
+		omron.port.on('data', function (chunk) {
+			// バッファに追加
+			let newBuffer = new Uint8Array(omron.internalBuffer.length + chunk.length);
+			newBuffer.set(omron.internalBuffer);
+			newBuffer.set(chunk, omron.internalBuffer.length);
+			omron.internalBuffer = newBuffer;
+
+			while (omron.internalBuffer.length >= 4) { // ヘッダ(2) + 長さ(2) の最小4バイトが必要
+				// ヘッダ検索 (0x52, 0x42)
+				let headerIndex = -1;
+				for (let i = 0; i &lt; omron.internalBuffer.length - 1; i++) {
+					if (omron.internalBuffer[i] === 0x52 &amp;&amp; omron.internalBuffer[i + 1] === 0x42) {
+						headerIndex = i;
+						break;
+					}
 				}
-			} else {
-				if (omron.callback) {
-					omron.callback(null, 'Error: recvData is nothing.');
+
+				if (headerIndex === -1) {
+					// ヘッダが見つからない場合、バッファをクリア（ただし最後の1バイトが0x52の可能性を考慮）
+					if (omron.internalBuffer[omron.internalBuffer.length - 1] === 0x52) {
+						omron.internalBuffer = omron.internalBuffer.slice(omron.internalBuffer.length - 1);
+					} else {
+						omron.internalBuffer = new Uint8Array(0);
+					}
+					break; // データ不足で待機
 				}
+
+				// ヘッダより前のゴミデータを破棄
+				if (headerIndex > 0) {
+					omron.internalBuffer = omron.internalBuffer.slice(headerIndex);
+					continue; // 再度チェック
+				}
+
+				// 長さフィールドの読み取り
+				let view = new DataView(omron.internalBuffer.buffer, omron.internalBuffer.byteOffset, omron.internalBuffer.length);
+				let payloadLen = view.getUint16(2, true); // Payload + CRC
+				let packetSize = 4 + payloadLen; // Header(2) + Length(2) + Payload + CRC
+
+				if (omron.internalBuffer.length &lt; packetSize) {
+					// パケット全体がまだ揃っていない
+					break;
+				}
+
+				// パケット抽出
+				let packet = omron.internalBuffer.slice(0, packetSize);
+
+				// バッファから抽出分を削除
+				omron.internalBuffer = omron.internalBuffer.slice(packetSize);
+
+				// パース実行
+				let r = omron.parseResponse(packet);
+				if (r) {
+					if (omron.callback) {
+						omron.callback(r, null);
+					} else {
+						omron.debug ? console.dir(r) : 0;
+					}
+				}
+				// パースエラーでもバッファからは削除済みなのでループ継続
 			}
 		});
 
@@ -509,7 +578,7 @@ module.exports = omron;
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Fri Dec 26 2025 03:33:50 GMT+0000 (Coordinated Universal Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Fri Dec 26 2025 03:52:21 GMT+0000 (Coordinated Universal Time) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>
