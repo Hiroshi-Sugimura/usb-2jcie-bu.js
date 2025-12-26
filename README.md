@@ -112,6 +112,20 @@ callback( sensorData, error )
 - requestData()
 
 
+## LEDの設定
+
+- settingLED(option)
+LEDの色を設定します。
+
+```javascript
+omron.settingLED({
+    red: 255,   // 0-255
+    green: 0,   // 0-255
+    blue: 0,    // 0-255
+    rule: 1     // 1: Normal (通常点灯), 0: OFF
+});
+```
+
 # 攻略情報
 
 定期的にデータを取得するにはcronモジュールを活用するとよいです。

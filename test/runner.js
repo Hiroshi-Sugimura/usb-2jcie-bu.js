@@ -27,12 +27,18 @@ omron.getPortList().then(portList => {
         console.log('>>> Step 3: Running Integration Tests...\n');
 
         if (!runScript('integration_test.js')) {
-            console.error('>>> Integration Tests FAILED.');
+            console.error('>>> Integration Tests (Sensor Data) FAILED.');
             process.exit(1);
-        } else {
-            console.log('>>> Integration Tests PASSED.');
-            process.exit(0);
         }
+        console.log('>>> Integration Tests (Sensor Data) PASSED.\n');
+
+        console.log('>>> Step 4: Running LED Tests...');
+        if (!runScript('led_test.js')) {
+            console.error('>>> LED Tests FAILED.');
+            process.exit(1);
+        }
+        console.log('>>> LED Tests PASSED.');
+        process.exit(0);
     } else {
         console.warn('>>> USB dongle was not found (USBドングルが発見できませんでした). Skipping Integration Tests.');
         process.exit(0);

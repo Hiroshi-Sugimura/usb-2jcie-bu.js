@@ -181,10 +181,11 @@ let omron = {
 		const address_view = new Uint16Array([ADDR_LED_SETTING]); // 0x5111: LED
 
 		// setting
-		const display_rule = new Uint16Array([0x0001]);
+		const ruleVal = (option.rule !== undefined) ? option.rule : 0x0001; // Default to 0x0001 (Normal)
+		const display_rule = new Uint16Array([ruleVal]);
 		const led_red = new Uint8Array([option.red]);
+		const led_green = new Uint8Array([option.green]); // Correct order: R, G, B
 		const led_blue = new Uint8Array([option.blue]);
-		const led_green = new Uint8Array([option.green]);
 
 		// CRC-16 (Header ～ Payload)
 		const crc = omron.calcCrc16([header_view, length_view, command_view, address_view, display_rule, led_red, led_green, led_blue]);
