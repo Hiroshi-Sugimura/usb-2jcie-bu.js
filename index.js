@@ -6,9 +6,28 @@
 const { SerialPort } = require('serialport');
 
 
-
+/**
+ * OMRON USB環境センサ (2JCIE-BU) を制御するモジュール
+ * @namespace omron
+ */
 let omron = {
+	/**
+	 * コールバック関数
+	 * @type {function}
+	 * @memberof omron
+	 */
 	callback: null,
+
+	/**
+	 * シリアルポートの設定
+	 * @type {object}
+	 * @property {string} path - ポートパス (例: 'COM3')
+	 * @property {number} baudRate - ボーレート (デフォルト: 115200)
+	 * @property {number} dataBits - データビット (デフォルト: 8)
+	 * @property {number} stopBits - ストップビット (デフォルト: 1)
+	 * @property {string} parity - パリティ (デフォルト: 'none')
+	 * @memberof omron
+	 */
 	portConfig: {
 		path: 'COM3',
 		baudRate: 115200,
@@ -16,18 +35,38 @@ let omron = {
 		stopBits: 1,
 		parity: 'none'
 	},
+
+	/**
+	 * シリアルポートオブジェクト
+	 * @type {SerialPort}
+	 * @memberof omron
+	 */
 	port: null,
+
+	/**
+	 * デバッグモードフラグ
+	 * @type {boolean}
+	 * @memberof omron
+	 */
 	debug: false,
 
-	//////////////////////////////////////////////////////////////////////
-	// 空オブジェクト判定
+	/**
+	 * 空オブジェクト判定
+	 * @param {object} obj - 判定するオブジェクト
+	 * @returns {boolean} 空の場合はtrue
+	 * @memberof omron
+	 */
 	isEmpty: function (obj) {
 		return Object.keys(obj).length === 0
 	},
 
 
-	//////////////////////////////////////////////////////////////////////
-	// リクエストデータ生成 (Uint8Array)
+	/**
+	 * リクエストデータ生成 (Uint8Array)
+	 * Read Latest data short (0x5022)
+	 * @returns {Uint8Array} 生成されたリクエストデータ
+	 * @memberof omron
+	 */
 	createRequestData: function () {
 		// Header
 		const header_view = new Uint8Array([0x52, 0x42]); // fix
@@ -45,8 +84,15 @@ let omron = {
 		return req_data;
 	},
 
-	//////////////////////////////////////////////////////////////////////
-	// リクエストデータ生成 (Uint8Array)
+	/**
+	 * LED設定用データ生成 (Uint8Array)
+	 * @param {object} option - LED設定オプション
+	 * @param {number} option.red - 赤色の輝度 (0-255)
+	 * @param {number} option.green - 緑色の輝度 (0-255)
+	 * @param {number} option.blue - 青色の輝度 (0-255)
+	 * @returns {Uint8Array} 生成された設定データ
+	 * @memberof omron
+	 */
 	createSettingLED: function (option) {
 		// Header
 		const header_view = new Uint8Array([0x52, 0x42]); // fix
@@ -71,7 +117,11 @@ let omron = {
 		return req_data;
 	},
 
-	// Flash memory status
+	/**
+	 * フラッシュメモリスステータスリクエスト生成
+	 * @returns {Uint8Array} 生成されたリクエストデータ
+	 * @memberof omron
+	 */
 	requestFlashMemoryStatus: function () {
 		// Header
 		const header_view = new Uint8Array([0x52, 0x42]);  // fix
@@ -91,8 +141,12 @@ let omron = {
 	},
 
 
-	//////////////////////////////////////////////////////////////////////
-	// Typed Array オブジェクトのリストを 1 つの Uint8Array に連結
+	/**
+	 * Typed Array オブジェクトのリストを 1 つの Uint8Array に連結
+	 * @param {Array<TypedArray>} typed_array_list - 連結したいTyped Arrayのリスト
+	 * @returns {Uint8Array} 連結されたUint8Array
+	 * @memberof omron
+	 */
 	concatTypedArrays: function (typed_array_list) {
 		let byte_list = [];
 		for (let typed_array of typed_array_list) {
@@ -104,8 +158,12 @@ let omron = {
 		return new Uint8Array(byte_list);
 	},
 
-	//////////////////////////////////////////////////////////////////////
-	// Typed Array のリストから CRC-16 を算出
+	/**
+	 * Typed Array のリストから CRC-16 を算出
+	 * @param {Array<TypedArray>} typed_array_list - 計算対象のTyped Arrayリスト
+	 * @returns {number} 計算されたCRC-16値
+	 * @memberof omron
+	 */
 	calcCrc16: function (typed_array_list) {
 		let byte_list = omron.concatTypedArrays(typed_array_list);
 		let reg = 0xffff;
@@ -127,8 +185,12 @@ let omron = {
 		return reg;
 	},
 
-	//////////////////////////////////////////////////////////////////////
-	// レスポンスをパース
+	/**
+	 * レスポンスデータをパースしてオブジェクトに変換
+	 * @param {Uint8Array} recvData - 受信データ
+	 * @returns {object|undefined} パースされたセンサーデータオブジェクト、またはundefined
+	 * @memberof omron
+	 */
 	parseResponse: function (recvData) {
 		if (recvData[0] !== 0x52 || recvData[1] !== 0x42) {  // 受信ヘッダ [0x42, 0x52] で固定 = [0x5242]
 			return;
@@ -194,8 +256,12 @@ let omron = {
 	},
 
 
-	//////////////////////////////////////////////////////////////////////
-	// シリアルポートのリスト取得
+	/**
+	 * 利用可能なシリアルポートのリストを取得
+	 * @async
+	 * @returns {Promise<Array>} シリアルポート情報の配列
+	 * @memberof omron
+	 */
 	getPortList: async function () {
 		let portList = [];
 
@@ -209,6 +275,10 @@ let omron = {
 		return portList;
 	},
 
+	/**
+	 * センサーデータのリクエストを送信
+	 * @memberof omron
+	 */
 	requestData: function () {
 		if (!omron.port) {  // まだポートがない
 			if (omron.callback) {
@@ -223,6 +293,12 @@ let omron = {
 		omron.port.write(b);
 	},
 
+	/**
+	 * LEDの設定を行う
+	 * @async
+	 * @param {object} option - LED設定オプション
+	 * @memberof omron
+	 */
 	settingLED: async function (option) {
 		// console.log(option);
 		if (!omron.port) {  // まだポートがない
@@ -238,6 +314,11 @@ let omron = {
 		await omron.port.write(b);
 	},
 
+	/**
+	 * フラッシュメモリの状態を確認する
+	 * @async
+	 * @memberof omron
+	 */
 	flashMemoryStatus: async function () {
 		// console.log('flashMemoryStatus');
 		await omron.port.write(omron.requestFlashMemoryStatus());
@@ -245,6 +326,15 @@ let omron = {
 
 	//////////////////////////////////////////////////////////////////////
 	// entry point
+	/**
+	 * モジュールの開始処理
+	 * シリアルポートを探索し、接続を確立してデータ受信の準備を行う
+	 * @async
+	 * @param {function} callback - データ受信時またはエラー発生時に呼ばれるコールバック関数 (err, data)
+	 * @param {object} [options={}] - オプション設定
+	 * @param {boolean} [options.debug=false] - デバッグモードの有効化
+	 * @memberof omron
+	 */
 	start: async function (callback, options = {}) {
 		omron.debug = options.debug == true ? true : false;
 
@@ -335,6 +425,11 @@ let omron = {
 		});
 	},
 
+	/**
+	 * モジュールの停止処理
+	 * シリアルポートを閉じる
+	 * @memberof omron
+	 */
 	stop: function () {
 		if (omron.port) {
 			omron.port.close();
