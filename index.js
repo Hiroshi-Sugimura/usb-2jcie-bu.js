@@ -414,7 +414,7 @@ let omron = {
 	 * モジュールの開始処理
 	 * シリアルポートを探索し、接続を確立してデータ受信の準備を行う
 	 * @async
-	 * @param {function} callback - データ受信時またはエラー発生時に呼ばれるコールバック関数 (err, data)
+	 * @param {function} callback - データ受信時またはエラー発生時に呼ばれるコールバック関数 (data, err)
 	 * @param {object} [options={}] - オプション設定
 	 * @param {boolean} [options.debug=false] - デバッグモードの有効化
 	 * @memberof omron

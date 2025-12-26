@@ -57,6 +57,26 @@ try {
     assert.ok(parsed, 'Parsed object should not be null/undefined');
     assert.strictEqual(parsed.sequence_number, 1);
     assert.strictEqual(parsed.temperature, 1.00);
+
+    // 5-1. Short buffer
+    const shortBuf = new Uint8Array([0x52, 0x42, 0x00]);
+    assert.strictEqual(omron.parseResponse(shortBuf), undefined, 'Short buffer should return undefined');
+
+    // 5-2. Invalid Header
+    const badHeader = new Uint8Array(buffer);
+    badHeader[0] = 0x00;
+    assert.strictEqual(omron.parseResponse(badHeader), undefined, 'Bad header should return undefined');
+
+    // 5-3. Length Mismatch
+    const badLen = new Uint8Array(buffer);
+    badLen[2] = 10; // Mismatch
+    assert.strictEqual(omron.parseResponse(badLen), undefined, 'Length mismatch should return undefined');
+
+    // 5-4. CRC Mismatch
+    const badCrc = new Uint8Array(buffer);
+    badCrc[buffer.length - 1] = 0xFF; // Corrupt CRC
+    assert.strictEqual(omron.parseResponse(badCrc), undefined, 'CRC mismatch should return undefined');
+
     console.log('PASS');
 
     console.log('-----------------------------------------');

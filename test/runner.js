@@ -16,6 +16,14 @@ if (!runScript('unit_test.js')) {
 }
 console.log('>>> Unit Tests PASSED.\n');
 
+console.log('>>> Step 1.5: Running API Error Tests...');
+if (!runScript('error_test.js')) {
+    console.error('>>> API Error Tests FAILED.');
+    // process.exit(1); // Do not fail build if optional? No, it should pass.
+    process.exit(1);
+}
+console.log('>>> API Error Tests PASSED.\n');
+
 // 2. Check for USB Dongle
 console.log('>>> Step 2: Checking for USB Dongle (VendorID=0590, ProductID=00D4)...');
 
