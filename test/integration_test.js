@@ -30,7 +30,9 @@ omron.start((data, err) => {
 
     if (data) {
         console.log('Data received successfully.');
-        // console.dir(data); // Optional: verify data visually
+        console.log('--- Sensor Values ---');
+        console.dir(data);
+        console.log('---------------------');
 
         try {
             assert.ok(typeof data.temperature === 'number', 'Temperature should be a number');

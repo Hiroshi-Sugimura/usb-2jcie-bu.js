@@ -15,6 +15,9 @@ NPMを見ると他にも開発されていますが、本モジュールの特�
 Windows以外では利点にならないかもしれません．
 USBドングルは1つだけ対応しています。複数接続していても初めに発見した1つを利用します。
 
+# Manual
+
+https://hiroshi-sugimura.github.io/usb-2jcie-bu.js/
 
 
 # Install

@@ -47,6 +47,12 @@ try {
     buffer[7] = 1;                      // Sequence
     buffer[8] = 100; buffer[9] = 0;     // Temperature 1.00 degC
 
+    // Calculate CRC for the constructed buffer (excluding last 2 bytes)
+    const crcVal = omron.calcCrc16([buffer.subarray(0, 28)]);
+    buffer[28] = crcVal & 0xFF;
+    buffer[29] = (crcVal >> 8) & 0xFF;
+
+
     const parsed = omron.parseResponse(buffer);
     assert.ok(parsed, 'Parsed object should not be null/undefined');
     assert.strictEqual(parsed.sequence_number, 1);
