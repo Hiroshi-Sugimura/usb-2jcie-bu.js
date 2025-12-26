@@ -4,7 +4,7 @@
 非公式ですので、本モジュールに関してOMRON社様に問い合わせなどは行わないようにお願いします．
 
 This module provides **USB environment sensor (2JCIE-BU) producted by OMRON**.
-This module is informality.
+This module is unofficial.
 
 
 動作確認は 2JCIE-BU01 (https://www.fa.omron.co.jp/products/family/3724/lineup.html) で行いました．
@@ -74,7 +74,7 @@ cron.schedule('*/2 * * * * *', () => {
 
 # Data stracture
 
-```JavaScript:stracture
+```JavaScript:structure
 sensorData: {
 	'sequence_number': sequence_number,
 	'temperature': temperature,
@@ -173,6 +173,7 @@ x Warranty
 
 ## Log
 
+- 1.4.0 LED設定機能の強化、通信安定性の向上（バッファ処理、CRCチェック）、エラーハンドリングの改善
 - 1.3.1 無用なLogを抑制
 - 1.3.0 Option.debugを追加
 - 1.2.0 LED settingを追加
